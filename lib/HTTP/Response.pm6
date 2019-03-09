@@ -71,7 +71,7 @@ method set-code(Int $code) {
     $!status-line = $code ~ " " ~ get_http_status_msg($code);
 }
 
-method next-request() returns HTTP::Request {
+method next-request(Bool :$found-method-strict = False) returns HTTP::Request {
     my HTTP::Request $new-request;
 
     my $location = ~self.header.field('Location').values;
@@ -82,9 +82,20 @@ method next-request() returns HTTP::Request {
         # The response to the request can be found under another URI using
         # a separate GET method. This relates to POST, PUT, DELETE and PATCH methods.
         my $method = $!request.method;
-        $method = "GET"
-          if self.code == 303 &&
-             $!request.method eq any('POST', 'PUT', 'DELETE', 'PATCH');
+        if $!request.method eq any('POST', 'PUT', 'DELETE', 'PATCH') {
+            given self.code {
+                # do not modify 302 redirect if strictly following rfc-2616
+                # most user agents treat a 302 (Found) like a 303 (See Other)
+                when 302 {
+                    proceed unless $found-method-strict;
+                    X::HTTP::Response.new(
+                        :rc('Non-GET/HEAD 302 redirect prohibited'),
+                        :response(self)
+                    ).throw;
+                }
+                when 303|302 { $method = "GET" }
+            }
+        }
 
         my %args = $method => $location;
 
