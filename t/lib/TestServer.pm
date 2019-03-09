@@ -50,12 +50,26 @@ module TestServer {
                                 $conn.close;
                             }
 
+                            elsif $req-line ~~ /^POST \s+ \/?rFound/ {
+                                $conn.write: "HTTP/1.1 302 Found\r\nLocation: /two\r\nSet-Cookie: test=abc\r\n\r\n".encode;
+                                $conn.close;
+                            }
+
+                            elsif $req-line ~~ /^POST \s+ \/?rSeeOther/ {
+                                $conn.write: "HTTP/1.1 303 See Other\r\nLocation: /two\r\nSet-Cookie: test=abc\r\n\r\n".encode;
+                                $conn.close;
+                            }
+
                             elsif $header ~~ /Content\-Length\:\s+$<length>=[\d+]/ {
                                 my $length = $<length>.Int; 
                                 if $in-buf.subbuf($header-end + 4) == $length {
                                     await $conn.write: "HTTP/1.0 200 OK\r\n".encode ~ $in-buf ;
                                     $conn.close;
                                 }
+                            }
+
+                            else {
+                                $conn.close;
                             }
                         }
                     } 
